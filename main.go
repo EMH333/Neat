@@ -1,9 +1,13 @@
 package main
 
 import (
+	"bufio"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"log"
+	"net/http"
+	"os"
 	"time"
 )
 
@@ -27,38 +31,86 @@ type ItemStorage struct {
 	Items []Item
 }
 
-const masterJSONFile = "neatStuff.json"
+const masterJSONFile = "./neatStuff.json"
 const shortLinkBase = "https://links.ethohampton.com/"
 const numToShowPublic = 5
+
+const adminKeyPath = "./admin.key"
+
+var adminKey string
 
 var itemsToServe []PublicItem
 
 func main() {
+	adminKey = getAdminKey(adminKeyPath)
 
+	http.HandleFunc("/json", serveJSON)
+	http.HandleFunc("/add", serveAdd)
+	http.HandleFunc("/", serveInfo)
+	log.Fatal(http.ListenAndServe(":8080", nil))
 }
 
-func serveJSON() {
-	if len(itemsToServe) != numToShowPublic {
+func serveJSON(w http.ResponseWriter, r *http.Request) {
+	if itemsToServe == nil || len(itemsToServe) != numToShowPublic {
 		its := loadItemsFromFile(masterJSONFile)
 		itemsToServe = getLastNItemsAsPublic(its, numToShowPublic)
 	}
 
 	output, _ := json.Marshal(itemsToServe)
-	fmt.Println(output)
+	fmt.Fprint(w, string(output))
+}
+
+func serveAdd(w http.ResponseWriter, r *http.Request) {
+	if r.Method == "GET" {
+		http.ServeFile(w, r, "./static/add.html")
+		return
+	} else if r.Method == "POST" {
+		if err := r.ParseForm(); err != nil {
+			//fmt.Printf("ParseForm() err: %v", err)
+			w.WriteHeader(400)
+			fmt.Fprint(w, "Some sort of form parsing error")
+			return
+		}
+
+		description := r.FormValue("description")
+		url := r.FormValue("url")
+
+		if description == "" || url == "" {
+			fmt.Fprint(w, "Please enter stuff in the form")
+			return
+		}
+
+		//make sure there is permision to add something to the neat list
+		key := r.FormValue("password")
+		if key == "" || adminKey == "" || key != adminKey {
+			fmt.Fprint(w, "Invalid password")
+			return
+		}
+
+		//create new item, add to all items and delete currently cached items
+		newItem := Item{Description: description, URL: url, AddDate: time.Now()}
+		allItems := loadItemsFromFile(masterJSONFile)
+		allItems.Items = append(allItems.Items, newItem)
+		storeItemsInFile(allItems, masterJSONFile)
+		itemsToServe = nil
+
+		fmt.Fprint(w, "Sucess!")
+		w.WriteHeader(http.StatusOK)
+	} else {
+		fmt.Fprint(w, "Invalid Method")
+	}
+}
+
+func serveInfo(w http.ResponseWriter, r *http.Request) {
+	http.ServeFile(w, r, "./static/info.html")
 }
 
 func loadItemsFromFile(filename string) *ItemStorage {
-	data, err := ioutil.ReadFile(filename)
-	if err != nil {
-		fmt.Println(err)
-	}
+	//don't really care about errors in this method because golang will just return sane defaults if it can't parse or read
+	data, _ := ioutil.ReadFile(filename)
 
 	var obj ItemStorage
-	err = json.Unmarshal(data, &obj)
-	if err != nil {
-		fmt.Println(err)
-	}
-
+	json.Unmarshal(data, &obj)
 	return &obj
 }
 
@@ -69,7 +121,15 @@ func storeItemsInFile(items *ItemStorage, filename string) {
 
 func getLastNItemsAsPublic(items *ItemStorage, n int) []PublicItem {
 	length := len(items.Items)
-	transform := items.Items[length-n-1:] // grab last n elements of items we are dealing with
+	if length < 0 {
+		return make([]PublicItem, 0)
+	}
+
+	if length < n {
+		n = length
+	}
+
+	transform := items.Items[length-n:] // grab last n elements of items we are dealing with
 	out := make([]PublicItem, n)
 
 	//for each item, set the right URL (short or not) and description
@@ -85,4 +145,24 @@ func getLastNItemsAsPublic(items *ItemStorage, n int) []PublicItem {
 		out[i] = newI
 	}
 	return out
+}
+
+func getAdminKey(keyPath string) string {
+	file, err := os.Open(keyPath)
+	if err == nil {
+		//log.Println(err)
+		scanner := bufio.NewScanner(file)
+		if scanner.Scan() {
+			log.Println("Found admin key")
+			return scanner.Text()
+		}
+
+		if err := scanner.Err(); err != nil {
+			log.Fatal(err)
+		}
+	}
+	defer file.Close()
+
+	log.Fatal("Some error with the admin key, need key to add links")
+	return "" //a empty string represents no admin account allowed
 }
