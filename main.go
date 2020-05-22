@@ -65,6 +65,7 @@ func serveJSON(w http.ResponseWriter, r *http.Request) {
 
 	output, _ := json.Marshal(itemsToServe)
 	fmt.Fprint(w, string(output))
+	w.Header().Set("Access-Control-Allow-Origin", "*")
 }
 
 func serveAdd(w http.ResponseWriter, r *http.Request) {
