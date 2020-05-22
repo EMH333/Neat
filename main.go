@@ -8,6 +8,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strconv"
 	"time"
 )
 
@@ -38,16 +39,22 @@ const numToShowPublic = 5
 const adminKeyPath = "./admin.key"
 
 var adminKey string
+var port = ":8080"
 
 var itemsToServe []PublicItem
 
 func main() {
+	if len(os.Args) > 1 && isInteger(os.Args[1]) {
+		port = ":" + os.Args[1]
+	}
+	log.Printf("Listening at http://localhost%s", port)
+
 	adminKey = getAdminKey(adminKeyPath)
 
 	http.HandleFunc("/json", serveJSON)
 	http.HandleFunc("/add", serveAdd)
 	http.HandleFunc("/", serveInfo)
-	log.Fatal(http.ListenAndServe(":8080", nil))
+	log.Fatal(http.ListenAndServe(port, nil))
 }
 
 func serveJSON(w http.ResponseWriter, r *http.Request) {
@@ -164,4 +171,9 @@ func getAdminKey(keyPath string) string {
 
 	log.Fatal("Some error with the admin key, need key to add links")
 	return "" //a empty string represents no admin account allowed
+}
+
+func isInteger(s string) bool {
+	_, err := strconv.ParseInt(s, 10, 64)
+	return err == nil
 }
