@@ -94,8 +94,7 @@ func serveAdd(w http.ResponseWriter, r *http.Request) {
 		storeItemsInFile(allItems, masterJSONFile)
 		itemsToServe = nil
 
-		fmt.Fprint(w, "Sucess!")
-		w.WriteHeader(http.StatusOK)
+		fmt.Fprint(w, "Success!")
 	} else {
 		fmt.Fprint(w, "Invalid Method")
 	}
