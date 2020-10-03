@@ -53,6 +53,7 @@ func main() {
 
 	http.HandleFunc("/json", serveJSON)
 	http.HandleFunc("/add", serveAdd)
+	http.HandleFunc("/all", serveAll)
 	http.HandleFunc("/", serveInfo)
 	log.Fatal(http.ListenAndServe(port, nil))
 }
@@ -90,7 +91,7 @@ func serveAdd(w http.ResponseWriter, r *http.Request) {
 
 		//make sure there is permision to add something to the neat list
 		key := r.FormValue("password")
-		if key == "" || adminKey == "" || key != adminKey {
+		if !correctKey(key) {
 			fmt.Fprint(w, "Invalid password")
 			return
 		}
@@ -103,7 +104,35 @@ func serveAdd(w http.ResponseWriter, r *http.Request) {
 		itemsToServe = nil
 
 		fmt.Fprint(w, "Success!")
+		log.Println("User added a link")
 	} else {
+		w.WriteHeader(400)
+		fmt.Fprint(w, "Invalid Method")
+	}
+}
+
+func serveAll(w http.ResponseWriter, r *http.Request) {
+	if r.Method == "POST" {
+		if err := r.ParseForm(); err != nil {
+			//fmt.Printf("ParseForm() err: %v", err)
+			w.WriteHeader(400)
+			fmt.Fprint(w, "Some sort of form parsing error")
+			return
+		}
+
+		//make sure there is permision to get all items
+		key := r.FormValue("password")
+		if !correctKey(key) {
+			fmt.Fprint(w, "Invalid password")
+			return
+		}
+
+		allItems := loadItemsFromFile(masterJSONFile)
+		output, _ := json.Marshal(allItems)
+		fmt.Fprint(w, string(output))
+		log.Println("User accessed all links")
+	} else {
+		w.WriteHeader(400)
 		fmt.Fprint(w, "Invalid Method")
 	}
 }
@@ -172,6 +201,14 @@ func getAdminKey(keyPath string) string {
 
 	log.Fatal("Some error with the admin key, need key to add links")
 	return "" //a empty string represents no admin account allowed
+}
+
+func correctKey(key string) bool {
+	//if key is blank, admin key is blank or the keys don't match then reject
+	if key == "" || adminKey == "" || key != adminKey {
+		return false
+	}
+	return true
 }
 
 func isInteger(s string) bool {
