@@ -138,6 +138,12 @@ func serveAll(w http.ResponseWriter, r *http.Request) {
 }
 
 func serveInfo(w http.ResponseWriter, r *http.Request) {
+	//Send 404's for all pages that arn't the home page
+	if r.URL.Path != "/" {
+		w.WriteHeader(404)
+		fmt.Fprint(w, "404 Page Not Found")
+		return
+	}
 	http.ServeFile(w, r, "./static/info.html")
 }
 
