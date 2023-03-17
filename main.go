@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"encoding/json"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"log"
 	"net/http"
@@ -16,7 +17,7 @@ import (
 type Item struct {
 	URL             string
 	Description     string
-	ShortLink       string //for links.ethohampton.com, just include the shortcut, should take precidence over url
+	ShortLink       string //for links.ethohampton.com, just include the shortcut, should take precedence over url
 	PostedOnTwitter bool
 	AddDate         time.Time
 }
@@ -58,14 +59,15 @@ func main() {
 	log.Fatal(http.ListenAndServe(port, nil))
 }
 
-func serveJSON(w http.ResponseWriter, r *http.Request) {
+func serveJSON(w http.ResponseWriter, _ *http.Request) {
 	if itemsToServe == nil || len(itemsToServe) != numToShowPublic {
 		its := loadItemsFromFile(masterJSONFile)
 		itemsToServe = getLastNItemsAsPublic(its, numToShowPublic)
 	}
 
 	output, _ := json.Marshal(itemsToServe)
-	fmt.Fprint(w, string(output))
+	returnString(w, string(output))
+	w.Header().Set("Content-Type", " application/json")
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 }
 
@@ -77,7 +79,7 @@ func serveAdd(w http.ResponseWriter, r *http.Request) {
 		if err := r.ParseForm(); err != nil {
 			//fmt.Printf("ParseForm() err: %v", err)
 			w.WriteHeader(400)
-			fmt.Fprint(w, "Some sort of form parsing error")
+			returnString(w, "Some sort of form parsing error")
 			return
 		}
 
@@ -85,14 +87,14 @@ func serveAdd(w http.ResponseWriter, r *http.Request) {
 		url := r.FormValue("url")
 
 		if description == "" || url == "" {
-			fmt.Fprint(w, "Please enter stuff in the form")
+			returnString(w, "Please enter stuff in the form")
 			return
 		}
 
-		//make sure there is permision to add something to the neat list
+		//make sure there is permission to add something to the neat list
 		key := r.FormValue("password")
 		if !correctKey(key) {
-			fmt.Fprint(w, "Invalid password")
+			returnString(w, "Invalid password")
 			return
 		}
 
@@ -103,11 +105,11 @@ func serveAdd(w http.ResponseWriter, r *http.Request) {
 		storeItemsInFile(allItems, masterJSONFile)
 		itemsToServe = nil
 
-		fmt.Fprint(w, "Success!")
+		returnString(w, "Success!")
 		log.Println("User added a link")
 	} else {
 		w.WriteHeader(400)
-		fmt.Fprint(w, "Invalid Method")
+		returnString(w, "Invalid Method")
 	}
 }
 
@@ -116,32 +118,32 @@ func serveAll(w http.ResponseWriter, r *http.Request) {
 		if err := r.ParseForm(); err != nil {
 			//fmt.Printf("ParseForm() err: %v", err)
 			w.WriteHeader(400)
-			fmt.Fprint(w, "Some sort of form parsing error")
+			returnString(w, "Some sort of form parsing error")
 			return
 		}
 
-		//make sure there is permision to get all items
+		//make sure there is permission to get all items
 		key := r.FormValue("password")
 		if !correctKey(key) {
-			fmt.Fprint(w, "Invalid password")
+			returnString(w, "Invalid password")
 			return
 		}
 
 		allItems := loadItemsFromFile(masterJSONFile)
 		output, _ := json.Marshal(allItems)
-		fmt.Fprint(w, string(output))
+		returnString(w, string(output))
 		log.Println("User accessed all links")
 	} else {
 		w.WriteHeader(400)
-		fmt.Fprint(w, "Invalid Method")
+		returnString(w, "Invalid Method")
 	}
 }
 
 func serveInfo(w http.ResponseWriter, r *http.Request) {
-	//Send 404's for all pages that arn't the home page
+	//Send 404's for all pages that aren't the home page
 	if r.URL.Path != "/" {
 		w.WriteHeader(404)
-		fmt.Fprint(w, "404 Page Not Found")
+		returnString(w, "404 Page Not Found")
 		return
 	}
 	http.ServeFile(w, r, "./static/info.html")
@@ -152,7 +154,11 @@ func loadItemsFromFile(filename string) *ItemStorage {
 	data, _ := ioutil.ReadFile(filename)
 
 	var obj ItemStorage
-	json.Unmarshal(data, &obj)
+	err := json.Unmarshal(data, &obj)
+	if err != nil {
+		log.Fatal("Couldn't unmarshal JSON items")
+		return nil
+	}
 	return &obj
 }
 
@@ -203,10 +209,23 @@ func getAdminKey(keyPath string) string {
 			log.Fatal(err)
 		}
 	}
-	defer file.Close()
+	defer func(file *os.File) {
+		err := file.Close()
+		if err != nil {
+			log.Fatal("Couldn't close file")
+		}
+	}(file)
 
 	log.Fatal("Some error with the admin key, need key to add links")
-	return "" //a empty string represents no admin account allowed
+	return "" //an empty string represents no admin account allowed
+}
+
+func returnString(w io.Writer, s string) {
+	_, err := fmt.Fprint(w, s)
+	if err != nil {
+		log.Println("Error writing string")
+		return
+	}
 }
 
 func correctKey(key string) bool {
