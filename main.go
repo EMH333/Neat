@@ -47,10 +47,11 @@ type ContentStorage struct {
 	ShortVisibilityDuration uint64  `json:"shortVisibilityDuration"`
 }
 
-const masterJSONFile = "./neatStuff.json"
+// constant (except for when testing)
+var masterJSONFile = "./neatStuff.json"
+
 const shortLinkBase = "https://links.ethohampton.com/"
 const numToShowPublic = 5
-
 const adminKeyPath = "./admin.key"
 
 var adminKey string
@@ -67,11 +68,20 @@ func main() {
 
 	adminKey = getAdminKey(adminKeyPath)
 
-	http.HandleFunc("/json", serveJSON)
-	http.HandleFunc("/add", serveAdd)
-	http.HandleFunc("/all", serveAll)
-	http.HandleFunc("/", serveInfo)
-	log.Fatal(http.ListenAndServe(port, nil))
+	handlers := getHandlers()
+
+	log.Fatal(http.ListenAndServe(port, handlers))
+}
+
+func getHandlers() *http.ServeMux {
+	mux := http.ServeMux{}
+
+	mux.HandleFunc("/json", serveJSON)
+	mux.HandleFunc("/add", serveAdd)
+	mux.HandleFunc("/all", serveAll)
+	mux.HandleFunc("/", serveInfo)
+
+	return &mux
 }
 
 func serveJSON(w http.ResponseWriter, _ *http.Request) {
