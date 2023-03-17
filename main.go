@@ -13,8 +13,8 @@ import (
 	"time"
 )
 
-//Item how a neat thing is stored in memory
-type Item struct {
+//Link how a neat thing is stored in memory
+type Link struct {
 	URL             string
 	Description     string
 	ShortLink       string //for links.ethohampton.com, just include the shortcut, should take precedence over url
@@ -22,15 +22,15 @@ type Item struct {
 	AddDate         time.Time
 }
 
-//PublicItem What is sent to users via JSON api
-type PublicItem struct {
+//PublicLink What is sent to users via JSON api
+type PublicLink struct {
 	URL         string
 	Description string
 }
 
-//ItemStorage the format how items are stored in the file
-type ItemStorage struct {
-	Items []Item
+//ContentStorage the format how items are stored in the file
+type ContentStorage struct {
+	Links []Link `json:"links"`
 }
 
 const masterJSONFile = "./neatStuff.json"
@@ -42,7 +42,7 @@ const adminKeyPath = "./admin.key"
 var adminKey string
 var port = ":8080"
 
-var itemsToServe []PublicItem
+var itemsToServe []PublicLink
 
 func main() {
 	if len(os.Args) > 1 && isInteger(os.Args[1]) {
@@ -99,9 +99,9 @@ func serveAdd(w http.ResponseWriter, r *http.Request) {
 		}
 
 		//create new item, add to all items and delete currently cached items
-		newItem := Item{Description: description, URL: url, AddDate: time.Now()}
+		newItem := Link{Description: description, URL: url, AddDate: time.Now()}
 		allItems := loadItemsFromFile(masterJSONFile)
-		allItems.Items = append(allItems.Items, newItem)
+		allItems.Links = append(allItems.Links, newItem)
 		storeItemsInFile(allItems, masterJSONFile)
 		itemsToServe = nil
 
@@ -149,11 +149,11 @@ func serveInfo(w http.ResponseWriter, r *http.Request) {
 	http.ServeFile(w, r, "./static/info.html")
 }
 
-func loadItemsFromFile(filename string) *ItemStorage {
+func loadItemsFromFile(filename string) *ContentStorage {
 	//don't really care about errors in this method because golang will just return sane defaults if it can't parse or read
 	data, _ := ioutil.ReadFile(filename)
 
-	var obj ItemStorage
+	var obj ContentStorage
 	err := json.Unmarshal(data, &obj)
 	if err != nil {
 		log.Fatal("Couldn't unmarshal JSON items")
@@ -162,27 +162,27 @@ func loadItemsFromFile(filename string) *ItemStorage {
 	return &obj
 }
 
-func storeItemsInFile(items *ItemStorage, filename string) {
+func storeItemsInFile(items *ContentStorage, filename string) {
 	file, _ := json.Marshal(items)
 	_ = ioutil.WriteFile(filename, file, 0644)
 }
 
-func getLastNItemsAsPublic(items *ItemStorage, n int) []PublicItem {
-	length := len(items.Items)
+func getLastNItemsAsPublic(items *ContentStorage, n int) []PublicLink {
+	length := len(items.Links)
 	if length < 0 {
-		return make([]PublicItem, 0)
+		return make([]PublicLink, 0)
 	}
 
 	if length < n {
 		n = length
 	}
 
-	transform := items.Items[length-n:] // grab last n elements of items we are dealing with
-	out := make([]PublicItem, n)
+	transform := items.Links[length-n:] // grab last n elements of items we are dealing with
+	out := make([]PublicLink, n)
 
 	//for each item, set the right URL (short or not) and description
 	for i := 0; i < n; i++ {
-		var newI PublicItem
+		var newI PublicLink
 		item := transform[i]
 		if item.ShortLink != "" {
 			newI.URL = shortLinkBase + item.ShortLink
