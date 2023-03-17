@@ -111,6 +111,7 @@ func serveAdd(w http.ResponseWriter, r *http.Request) {
 		//make sure there is permission to add something to the neat list
 		key := r.FormValue("password")
 		if !correctKey(key) {
+			w.WriteHeader(http.StatusForbidden)
 			returnString(w, "Invalid password")
 			return
 		}
@@ -153,6 +154,7 @@ func serveAll(w http.ResponseWriter, r *http.Request) {
 		//make sure there is permission to get all items
 		key := r.FormValue("password")
 		if !correctKey(key) {
+			w.WriteHeader(http.StatusForbidden)
 			returnString(w, "Invalid password")
 			return
 		}

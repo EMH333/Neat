@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"reflect"
+	"strings"
 	"testing"
 )
 
@@ -55,10 +56,6 @@ func TestLinkHTTP(t *testing.T) {
 				URL:         "testing5",
 				Description: "IDK",
 			},
-			{
-				URL:         "testing6",
-				Description: "IDK",
-			},
 		},
 		Shorts:                  nil,
 		ShortVisibilityDuration: 0,
@@ -80,9 +77,28 @@ func TestLinkHTTP(t *testing.T) {
 	handlers := getHandlers()
 	adminKey = "testing"
 
-	// now let's actually do the test
+	// test getting all
 	resp := httptest.NewRecorder()
-	req, err := http.NewRequest("GET", "/json", nil)
+	body := strings.NewReader("password=testing&url=testing6&description=somethingNew")
+	req, err := http.NewRequest("POST", "/add", body)
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	handlers.ServeHTTP(resp, req)
+	if _, err := ioutil.ReadAll(resp.Body); err != nil {
+		t.Fail()
+	} else {
+		//check status code
+		if resp.Code != http.StatusOK {
+			t.Fatalf("Wrong status %d", resp.Code)
+		}
+	}
+
+	// test JSON
+	resp = httptest.NewRecorder()
+	req, err = http.NewRequest("GET", "/json", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -106,6 +122,86 @@ func TestLinkHTTP(t *testing.T) {
 			if item.URL == "testing1" {
 				t.Fatal("returned array had 'testing1' item")
 			}
+		}
+	}
+
+	// test getting all
+	resp = httptest.NewRecorder()
+	body = strings.NewReader("password=testing")
+	req, err = http.NewRequest("POST", "/all", body)
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	handlers.ServeHTTP(resp, req)
+	if p, err := ioutil.ReadAll(resp.Body); err != nil {
+		t.Fail()
+	} else {
+		//make sure we can parse it back into a proper json array, and it has the right items
+		var items ContentStorage
+		err := json.Unmarshal(p, &items)
+		if err != nil {
+			t.Fatal(err, string(p))
+		}
+
+		if len(items.Links) != 6 {
+			t.Fatalf("returned array had %d items, expected 6", len(items.Links))
+		}
+	}
+
+	// test getting all with wrong password
+	resp = httptest.NewRecorder()
+	body = strings.NewReader("password=wrong")
+	req, err = http.NewRequest("POST", "/all", body)
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	handlers.ServeHTTP(resp, req)
+	if _, err := ioutil.ReadAll(resp.Body); err != nil {
+		t.Fail()
+	} else {
+		//check status code
+		if resp.Code != http.StatusForbidden {
+			t.Fatalf("Wrong status %d", resp.Code)
+		}
+	}
+
+	// test adding with wrong password
+	resp = httptest.NewRecorder()
+	body = strings.NewReader("password=wrong")
+	req, err = http.NewRequest("POST", "/add", body)
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	handlers.ServeHTTP(resp, req)
+	if _, err := ioutil.ReadAll(resp.Body); err != nil {
+		t.Fail()
+	} else {
+		//check status code
+		if resp.Code != http.StatusForbidden {
+			t.Fatalf("Wrong status %d", resp.Code)
+		}
+	}
+
+	// test random page (not found)
+	resp = httptest.NewRecorder()
+	req, err = http.NewRequest("GET", "/random-does-not-exist", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	handlers.ServeHTTP(resp, req)
+	if _, err := ioutil.ReadAll(resp.Body); err != nil {
+		t.Fail()
+	} else {
+		//check status code
+		if resp.Code != http.StatusNotFound {
+			t.Fatalf("Wrong status %d", resp.Code)
 		}
 	}
 }
