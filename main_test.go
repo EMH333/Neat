@@ -74,7 +74,7 @@ func TestLinkHTTP(t *testing.T) {
 	writeFile(fileLoc, j)
 
 	// set needed variables
-	masterJSONFile = fileLoc
+	storageJSONFile = fileLoc
 	handlers := getHandlers()
 	adminKey = "testing"
 

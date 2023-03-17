@@ -48,7 +48,7 @@ type ContentStorage struct {
 }
 
 // constant (except for when testing)
-var masterJSONFile = "./neatStuff.json"
+var storageJSONFile = "./neatStuff.json"
 
 const shortLinkBase = "https://links.ethohampton.com/"
 const numToShowPublic = 5
@@ -86,7 +86,7 @@ func getHandlers() *http.ServeMux {
 
 func serveJSON(w http.ResponseWriter, _ *http.Request) {
 	if itemsToServe == nil || len(itemsToServe) != numToShowPublic {
-		its := loadItemsFromFile(masterJSONFile)
+		its := loadItemsFromFile(storageJSONFile)
 		itemsToServe = getLastNItemsAsPublic(its, numToShowPublic)
 	}
 
@@ -127,9 +127,9 @@ func serveAdd(w http.ResponseWriter, r *http.Request) {
 
 			//create new item, add to all items and delete currently cached items
 			newItem := Link{Description: description, URL: url, AddDate: time.Now()}
-			allItems := loadItemsFromFile(masterJSONFile)
+			allItems := loadItemsFromFile(storageJSONFile)
 			allItems.Links = append(allItems.Links, newItem)
-			storeItemsInFile(allItems, masterJSONFile)
+			storeItemsInFile(allItems, storageJSONFile)
 			itemsToServe = nil
 		}
 
@@ -157,7 +157,7 @@ func serveAll(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		allItems := loadItemsFromFile(masterJSONFile)
+		allItems := loadItemsFromFile(storageJSONFile)
 		output, _ := json.Marshal(allItems)
 		returnString(w, string(output))
 		log.Println("User accessed all links")
