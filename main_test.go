@@ -67,7 +67,9 @@ func TestLinkHTTP(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer os.RemoveAll(dir)
+	defer func(path string) {
+		_ = os.RemoveAll(path)
+	}(dir)
 	fileLoc := dir + "/testing.json"
 
 	j, _ := json.Marshal(file)
