@@ -3,15 +3,19 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Add Neat Link</title>
+    <title>Add to Neat</title>
 </head>
 <body>
+    <h2>Link</h2>
     <form action="/add" method="post">
         <input type="text" name="description" id="description" placeholder="Description">
         <input type="text" name="url" id="url" placeholder="URL">
         <input type="password" name="password" id="password" placeholder="Password">
+        <input type="hidden" name="type" value="link">
         <button type="submit">Submit</button>
         <button type="submit" formaction="/all">Get All Items</button>
     </form>
+
+    <h2>Short</h2>
 </body>
 </html>

@@ -22,6 +22,18 @@ type Link struct {
 	AddDate         time.Time
 }
 
+//Short A piece of short content that can (eventually, once implemented) disappear
+//Note: this contains some non-public info, but since this is displayed via template, that is okay
+type Short struct {
+	Title       string
+	Content     string
+	ID          string    // system generated, for admin use (but displayed on page)
+	ReleaseDate time.Time // allow for delayed releasing, if before AddDate, then immediate release
+	Pinned      bool      //TODO allow pinning shorts so they dont disappear
+	Kept        uint64    //TODO allow anonymous users to "keep" a short so the time they are visible is extended
+	AddDate     time.Time
+}
+
 //PublicLink What is sent to users via JSON api
 type PublicLink struct {
 	URL         string
@@ -30,7 +42,9 @@ type PublicLink struct {
 
 //ContentStorage the format how items are stored in the file
 type ContentStorage struct {
-	Links []Link `json:"links"`
+	Links                   []Link  `json:"links"`
+	Shorts                  []Short `json:"shorts"`
+	ShortVisibilityDuration uint64  `json:"shortVisibilityDuration"`
 }
 
 const masterJSONFile = "./neatStuff.json"
@@ -42,6 +56,7 @@ const adminKeyPath = "./admin.key"
 var adminKey string
 var port = ":8080"
 
+//These are all "caches" in that they can handle being empty
 var itemsToServe []PublicLink
 
 func main() {
@@ -83,14 +98,6 @@ func serveAdd(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		description := r.FormValue("description")
-		url := r.FormValue("url")
-
-		if description == "" || url == "" {
-			returnString(w, "Please enter stuff in the form")
-			return
-		}
-
 		//make sure there is permission to add something to the neat list
 		key := r.FormValue("password")
 		if !correctKey(key) {
@@ -98,12 +105,23 @@ func serveAdd(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		//create new item, add to all items and delete currently cached items
-		newItem := Link{Description: description, URL: url, AddDate: time.Now()}
-		allItems := loadItemsFromFile(masterJSONFile)
-		allItems.Links = append(allItems.Links, newItem)
-		storeItemsInFile(allItems, masterJSONFile)
-		itemsToServe = nil
+		//for links
+		{
+			description := r.FormValue("description")
+			url := r.FormValue("url")
+
+			if description == "" || url == "" {
+				returnString(w, "Please enter stuff in the form")
+				return
+			}
+
+			//create new item, add to all items and delete currently cached items
+			newItem := Link{Description: description, URL: url, AddDate: time.Now()}
+			allItems := loadItemsFromFile(masterJSONFile)
+			allItems.Links = append(allItems.Links, newItem)
+			storeItemsInFile(allItems, masterJSONFile)
+			itemsToServe = nil
+		}
 
 		returnString(w, "Success!")
 		log.Println("User added a link")
