@@ -3,10 +3,13 @@ package main
 import (
 	"bufio"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"html/template"
 	"io"
 	"io/ioutil"
 	"log"
+	"math/rand"
 	"net/http"
 	"os"
 	"strconv"
@@ -24,6 +27,7 @@ type Link struct {
 
 //Short A piece of short content that can (eventually, once implemented) disappear
 //Note: this contains some non-public info, but since this is displayed via template, that is okay
+//TODO prevent too many shorts from being released on the same day
 type Short struct {
 	Title       string
 	Content     string
@@ -59,6 +63,8 @@ var port = ":8080"
 
 //These are all "caches" in that they can handle being empty
 var itemsToServe []PublicLink
+var shortsToServe []Short
+var shortsTemplate *template.Template
 
 func main() {
 	if len(os.Args) > 1 && isInteger(os.Args[1]) {
@@ -66,6 +72,11 @@ func main() {
 	}
 	log.Printf("Listening at http://localhost%s", port)
 
+	var err error
+	shortsTemplate, err = template.ParseFiles("static/shorts.gohtml")
+	if err != nil {
+		log.Fatal(err)
+	}
 	adminKey = getAdminKey(adminKeyPath)
 
 	handlers := getHandlers()
@@ -76,7 +87,8 @@ func main() {
 func getHandlers() *http.ServeMux {
 	mux := http.ServeMux{}
 
-	mux.HandleFunc("/json", serveJSON)
+	mux.HandleFunc("/json", serveLinks)
+	mux.HandleFunc("/shorts", serveShorts)
 	mux.HandleFunc("/add", serveAdd)
 	mux.HandleFunc("/all", serveAll)
 	mux.HandleFunc("/", serveInfo)
@@ -84,7 +96,7 @@ func getHandlers() *http.ServeMux {
 	return &mux
 }
 
-func serveJSON(w http.ResponseWriter, _ *http.Request) {
+func serveLinks(w http.ResponseWriter, _ *http.Request) {
 	if itemsToServe == nil || len(itemsToServe) != numToShowPublic {
 		its := loadItemsFromFile(storageJSONFile)
 		itemsToServe = getLastNItemsAsPublic(its, numToShowPublic)
@@ -94,6 +106,31 @@ func serveJSON(w http.ResponseWriter, _ *http.Request) {
 	returnString(w, string(output))
 	w.Header().Set("Content-Type", " application/json")
 	w.Header().Set("Access-Control-Allow-Origin", "*")
+}
+
+func serveShorts(w http.ResponseWriter, _ *http.Request) {
+	//TODO occasionally refresh shorts
+	if shortsToServe == nil {
+		its := loadItemsFromFile(storageJSONFile)
+		shorts := its.Shorts
+		for i := len(shorts) - 1; i >= 0; i-- {
+			short := shorts[i]
+			// make sure shorts aren't being shown before release date
+			if time.Now().Before(short.ReleaseDate) {
+				shorts = removeShort(shorts, i)
+			}
+		}
+		shortsToServe = shorts
+	}
+
+	err := shortsTemplate.Execute(w, struct {
+		Shorts []Short
+	}{Shorts: shortsToServe})
+	if err != nil {
+		log.Println(err)
+		w.WriteHeader(http.StatusInternalServerError)
+		returnString(w, "Couldn't render template")
+	}
 }
 
 func serveAdd(w http.ResponseWriter, r *http.Request) {
@@ -117,29 +154,89 @@ func serveAdd(w http.ResponseWriter, r *http.Request) {
 		}
 
 		//for links
-		{
-			description := r.FormValue("description")
-			url := r.FormValue("url")
-
-			if description == "" || url == "" {
-				returnString(w, "Please enter stuff in the form")
+		addType := r.FormValue("type")
+		switch addType {
+		case "link":
+			err := addLink(w, r)
+			if err != nil {
 				return
 			}
-
-			//create new item, add to all items and delete currently cached items
-			newItem := Link{Description: description, URL: url, AddDate: time.Now()}
-			allItems := loadItemsFromFile(storageJSONFile)
-			allItems.Links = append(allItems.Links, newItem)
-			storeItemsInFile(allItems, storageJSONFile)
-			itemsToServe = nil
+		case "short":
+			err := addShort(w, r)
+			if err != nil {
+				return
+			}
+		default:
+			w.WriteHeader(400)
+			returnString(w, "Invalid Type")
 		}
 
 		returnString(w, "Success!")
-		log.Println("User added a link")
+		log.Println("User added a " + addType)
 	} else {
 		w.WriteHeader(400)
 		returnString(w, "Invalid Method")
 	}
+}
+
+func addLink(w http.ResponseWriter, r *http.Request) error {
+	description := r.FormValue("description")
+	url := r.FormValue("url")
+
+	if description == "" || url == "" {
+		returnString(w, "Please enter stuff in the form")
+		return errors.New("nothing in form")
+	}
+
+	//create new item, add to all items and delete currently cached items
+	newItem := Link{Description: description, URL: url, AddDate: time.Now()}
+	allItems := loadItemsFromFile(storageJSONFile)
+	allItems.Links = append(allItems.Links, newItem)
+	storeItemsInFile(allItems, storageJSONFile)
+	itemsToServe = nil
+	return nil
+}
+
+func addShort(w http.ResponseWriter, r *http.Request) error {
+	title := r.FormValue("title")
+	content := r.FormValue("content")
+	releaseHours := r.FormValue("releaseHours")
+
+	if title == "" || content == "" || releaseHours == "" {
+		returnString(w, "Please enter stuff in the form")
+		return errors.New("nothing in form")
+	}
+
+	hours, err := strconv.ParseInt(releaseHours, 10, 64)
+	if err != nil || hours < 0 {
+		returnString(w, "Release hour isn't a positive number")
+		return errors.New("release hour not an hour")
+	}
+
+	releaseTime := time.Now()
+	if hours != 0 {
+		releaseTime = releaseTime.Truncate(time.Hour) // to the nearest hour
+		releaseTime = releaseTime.Add(time.Hour * time.Duration(hours))
+	} else {
+		releaseTime = releaseTime.Truncate(time.Second) // if releasing now, then don't need to specify second
+	}
+
+	//create new short
+	newShort := Short{
+		Title:       title,
+		Content:     content,
+		ID:          generateShortID(),
+		ReleaseDate: releaseTime,
+		Pinned:      false,
+		Kept:        0,
+		AddDate:     time.Now(),
+	}
+
+	allItems := loadItemsFromFile(storageJSONFile)
+	allItems.Shorts = append(allItems.Shorts, newShort)
+	storeItemsInFile(allItems, storageJSONFile)
+	shortsToServe = nil
+	return nil
 }
 
 func serveAll(w http.ResponseWriter, r *http.Request) {
@@ -250,6 +347,21 @@ func getAdminKey(keyPath string) string {
 	return "" //an empty string represents no admin account allowed
 }
 
+func generateShortID() string {
+	return RandString(6) // use 6 for now, since 24 possible characters gives us some room
+}
+
+// based on Open Location Code Base20 alphabet, add E, L, S and T because I felt like it
+const letterBytes = "23456789CEFGHJLMPQRSTVWX"
+
+func RandString(n int) string {
+	b := make([]byte, n)
+	for i := range b {
+		b[i] = letterBytes[rand.Intn(len(letterBytes))]
+	}
+	return string(b)
+}
+
 func returnString(w io.Writer, s string) {
 	_, err := fmt.Fprint(w, s)
 	if err != nil {
@@ -269,4 +381,9 @@ func correctKey(key string) bool {
 func isInteger(s string) bool {
 	_, err := strconv.ParseInt(s, 10, 64)
 	return err == nil
+}
+
+//removeShort index from shorts array
+func removeShort(slice []Short, s int) []Short {
+	return append(slice[:s], slice[s+1:]...)
 }

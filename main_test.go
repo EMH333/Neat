@@ -79,7 +79,7 @@ func TestLinkHTTP(t *testing.T) {
 
 	// test getting all
 	resp := httptest.NewRecorder()
-	body := strings.NewReader("password=testing&url=testing6&description=somethingNew")
+	body := strings.NewReader("password=testing&url=testing6&description=somethingNew&type=link")
 	req, err := http.NewRequest("POST", "/add", body)
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	if err != nil {

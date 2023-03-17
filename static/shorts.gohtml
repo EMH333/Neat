@@ -19,6 +19,12 @@
     </style>
 </head>
 <body>
-
+{{ range .Shorts }}
+    <div>
+        <h2>{{ .Title }} - <a href="/short/{{ .ID }}">{{ .ID }}</a></h2>
+        <p>{{ .Content }}</p>
+        <p>{{ .ReleaseDate }}</p>
+    </div>
+{{ end }}
 </body>
 </html>
