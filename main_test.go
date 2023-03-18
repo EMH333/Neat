@@ -3,13 +3,11 @@ package main
 import (
 	"encoding/json"
 	"ethohampton.com/Neat/internal/types"
-	"ethohampton.com/Neat/internal/util"
 	"io/ioutil"
 	"log"
 	"net/http"
 	"net/http/httptest"
 	"os"
-	"reflect"
 	"strings"
 	"testing"
 )
@@ -226,96 +224,6 @@ func Test_correctKey(t *testing.T) {
 			if got := correctKey(tt.key); got != tt.want {
 				t.Errorf("correctKey() = %v, want %v", got, tt.want)
 			}
-		})
-	}
-}
-
-func Test_getLastNItemsAsPublic(t *testing.T) {
-	type args struct {
-		items *types.ContentStorage
-		n     int
-	}
-	tests := []struct {
-		name string
-		args args
-		want []types.PublicLink
-	}{
-		// TODO: Add test cases.
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if got := getLastNItemsAsPublic(tt.args.items, tt.args.n); !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("getLastNItemsAsPublic() = %v, want %v", got, tt.want)
-			}
-		})
-	}
-}
-
-func Test_isInteger(t *testing.T) {
-	tests := []struct {
-		name string
-		s    string
-		want bool
-	}{
-		{
-			name: "yes",
-			s:    "123",
-			want: true,
-		},
-		{
-			name: "no",
-			s:    "nope",
-			want: false,
-		},
-		{
-			name: "maybe so",
-			s:    "n123",
-			want: false,
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if got := util.IsInteger(tt.s); got != tt.want {
-				t.Errorf("IsInteger() = %v, want %v", got, tt.want)
-			}
-		})
-	}
-}
-
-func Test_loadItemsFromFile(t *testing.T) {
-	type args struct {
-		filename string
-	}
-	tests := []struct {
-		name string
-		args args
-		want *types.ContentStorage
-	}{
-		// TODO: Add test cases.
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if got := util.LoadItemsFromFile(tt.args.filename); !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("LoadItemsFromFile() = %v, want %v", got, tt.want)
-			}
-		})
-	}
-}
-
-func Test_storeItemsInFile(t *testing.T) {
-	type args struct {
-		items    *types.ContentStorage
-		filename string
-	}
-	tests := []struct {
-		name string
-		args args
-	}{
-		// TODO: Add test cases.
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			util.StoreItemsInFile(tt.args.items, tt.args.filename)
 		})
 	}
 }
