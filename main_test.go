@@ -2,6 +2,8 @@ package main
 
 import (
 	"encoding/json"
+	"ethohampton.com/Neat/internal/types"
+	"ethohampton.com/Neat/internal/util"
 	"io/ioutil"
 	"log"
 	"net/http"
@@ -34,8 +36,8 @@ func writeFile(fileName string, data []byte) {
 
 func TestLinkHTTP(t *testing.T) {
 	// create a basic content file
-	file := ContentStorage{
-		Links: []Link{
+	file := types.ContentStorage{
+		Links: []types.Link{
 			{
 				URL:         "testing1",
 				Description: "IDK",
@@ -108,7 +110,7 @@ func TestLinkHTTP(t *testing.T) {
 		t.Fail()
 	} else {
 		//make sure we can parse it back into a proper json array, and it has the right items
-		var items []PublicLink
+		var items []types.PublicLink
 		err := json.Unmarshal(p, &items)
 		if err != nil {
 			t.Fatal(err)
@@ -139,7 +141,7 @@ func TestLinkHTTP(t *testing.T) {
 		t.Fail()
 	} else {
 		//make sure we can parse it back into a proper json array, and it has the right items
-		var items ContentStorage
+		var items types.ContentStorage
 		err := json.Unmarshal(p, &items)
 		if err != nil {
 			t.Fatal(err, string(p))
@@ -230,13 +232,13 @@ func Test_correctKey(t *testing.T) {
 
 func Test_getLastNItemsAsPublic(t *testing.T) {
 	type args struct {
-		items *ContentStorage
+		items *types.ContentStorage
 		n     int
 	}
 	tests := []struct {
 		name string
 		args args
-		want []PublicLink
+		want []types.PublicLink
 	}{
 		// TODO: Add test cases.
 	}
@@ -273,8 +275,8 @@ func Test_isInteger(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := isInteger(tt.s); got != tt.want {
-				t.Errorf("isInteger() = %v, want %v", got, tt.want)
+			if got := util.IsInteger(tt.s); got != tt.want {
+				t.Errorf("IsInteger() = %v, want %v", got, tt.want)
 			}
 		})
 	}
@@ -287,14 +289,14 @@ func Test_loadItemsFromFile(t *testing.T) {
 	tests := []struct {
 		name string
 		args args
-		want *ContentStorage
+		want *types.ContentStorage
 	}{
 		// TODO: Add test cases.
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := loadItemsFromFile(tt.args.filename); !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("loadItemsFromFile() = %v, want %v", got, tt.want)
+			if got := util.LoadItemsFromFile(tt.args.filename); !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("LoadItemsFromFile() = %v, want %v", got, tt.want)
 			}
 		})
 	}
@@ -302,7 +304,7 @@ func Test_loadItemsFromFile(t *testing.T) {
 
 func Test_storeItemsInFile(t *testing.T) {
 	type args struct {
-		items    *ContentStorage
+		items    *types.ContentStorage
 		filename string
 	}
 	tests := []struct {
@@ -313,7 +315,7 @@ func Test_storeItemsInFile(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			storeItemsInFile(tt.args.items, tt.args.filename)
+			util.StoreItemsInFile(tt.args.items, tt.args.filename)
 		})
 	}
 }

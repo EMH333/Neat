@@ -4,53 +4,18 @@ import (
 	"bufio"
 	"encoding/json"
 	"errors"
+	"ethohampton.com/Neat/internal/types"
+	"ethohampton.com/Neat/internal/util"
 	"fmt"
 	"html/template"
 	"io"
-	"io/ioutil"
 	"log"
-	"math/rand"
 	"net/http"
 	"os"
 	"strconv"
 	"sync"
 	"time"
 )
-
-//Link how a neat thing is stored in memory
-type Link struct {
-	URL             string
-	Description     string
-	ShortLink       string //for links.ethohampton.com, just include the shortcut, should take precedence over url
-	PostedOnTwitter bool
-	AddDate         time.Time
-}
-
-//Short A piece of short content that can (eventually, once implemented) disappear
-//Note: this contains some non-public info, but since this is displayed via template, that is okay
-//TODO prevent too many shorts from being released on the same day
-type Short struct {
-	Title       string
-	Content     string
-	ID          string    // system generated, for admin use (but displayed on page)
-	ReleaseDate time.Time // allow for delayed releasing, if before AddDate, then immediate release
-	Pinned      bool      //TODO allow pinning shorts so they don't disappear
-	Kept        uint64    //TODO allow anonymous users to "keep" a short so the time they are visible is extended
-	AddDate     time.Time
-}
-
-//PublicLink What is sent to users via JSON api
-type PublicLink struct {
-	URL         string
-	Description string
-}
-
-//ContentStorage the format how items are stored in the file
-type ContentStorage struct {
-	Links                   []Link  `json:"links"`
-	Shorts                  []Short `json:"shorts"`
-	ShortVisibilityDuration uint64  `json:"shortVisibilityDuration"`
-}
 
 // constant (except for when testing)
 var storageJSONFile = "./neatStuff.json"
@@ -64,13 +29,13 @@ var adminKey string
 var port = ":8080"
 
 //These are all "caches" in that they can handle being empty
-var itemsToServe []PublicLink
-var shortsToServe []Short
+var itemsToServe []types.PublicLink
+var shortsToServe []types.Short
 var shortsTemplate *template.Template
 var shortsLastUpdated time.Time
 
 func main() {
-	if len(os.Args) > 1 && isInteger(os.Args[1]) {
+	if len(os.Args) > 1 && util.IsInteger(os.Args[1]) {
 		port = ":" + os.Args[1]
 	}
 	log.Printf("Listening at http://localhost%s", port)
@@ -105,7 +70,7 @@ func serveLinks(w http.ResponseWriter, _ *http.Request) {
 		storageMutex.RLock()
 		defer storageMutex.RUnlock()
 
-		its := loadItemsFromFile(storageJSONFile)
+		its := util.LoadItemsFromFile(storageJSONFile)
 		itemsToServe = getLastNItemsAsPublic(its, numToShowPublic)
 	}
 
@@ -120,7 +85,7 @@ func serveShorts(w http.ResponseWriter, _ *http.Request) {
 	updateShortsToServe()
 
 	err := shortsTemplate.Execute(w, struct {
-		Shorts []Short
+		Shorts []types.Short
 	}{Shorts: shortsToServe})
 	if err != nil {
 		log.Println(err)
@@ -189,10 +154,10 @@ func addLink(w http.ResponseWriter, r *http.Request) error {
 	defer storageMutex.Unlock()
 
 	//create new item, add to all items and delete currently cached items
-	newItem := Link{Description: description, URL: url, AddDate: time.Now()}
-	allItems := loadItemsFromFile(storageJSONFile)
+	newItem := types.Link{Description: description, URL: url, AddDate: time.Now()}
+	allItems := util.LoadItemsFromFile(storageJSONFile)
 	allItems.Links = append(allItems.Links, newItem)
-	storeItemsInFile(allItems, storageJSONFile)
+	util.StoreItemsInFile(allItems, storageJSONFile)
 	itemsToServe = nil
 	return nil
 }
@@ -220,9 +185,10 @@ func addShort(w http.ResponseWriter, r *http.Request) error {
 	} else {
 		releaseTime = releaseTime.Truncate(time.Second) // if releasing now, then don't need to specify second
 	}
+	//releaseTime = findNextValidReleaseTime(releaseTime)
 
 	//create new short
-	newShort := Short{
+	newShort := types.Short{
 		Title:       title,
 		Content:     content,
 		ID:          generateShortID(),
@@ -236,9 +202,9 @@ func addShort(w http.ResponseWriter, r *http.Request) error {
 	storageMutex.Lock()
 	defer storageMutex.Unlock()
 
-	allItems := loadItemsFromFile(storageJSONFile)
+	allItems := util.LoadItemsFromFile(storageJSONFile)
 	allItems.Shorts = append(allItems.Shorts, newShort)
-	storeItemsInFile(allItems, storageJSONFile)
+	util.StoreItemsInFile(allItems, storageJSONFile)
 	shortsToServe = nil
 	return nil
 }
@@ -260,7 +226,7 @@ func serveAll(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		allItems := loadItemsFromFile(storageJSONFile)
+		allItems := util.LoadItemsFromFile(storageJSONFile)
 		output, _ := json.Marshal(allItems)
 		returnString(w, string(output))
 		log.Println("User accessed all links")
@@ -280,28 +246,10 @@ func serveInfo(w http.ResponseWriter, r *http.Request) {
 	http.ServeFile(w, r, "./static/info.html")
 }
 
-func loadItemsFromFile(filename string) *ContentStorage {
-	//don't really care about errors in this method because golang will just return sane defaults if it can't parse or read
-	data, _ := ioutil.ReadFile(filename)
-
-	var obj ContentStorage
-	err := json.Unmarshal(data, &obj)
-	if err != nil {
-		log.Fatal("Couldn't unmarshal JSON items")
-		return nil
-	}
-	return &obj
-}
-
-func storeItemsInFile(items *ContentStorage, filename string) {
-	file, _ := json.Marshal(items)
-	_ = ioutil.WriteFile(filename, file, 0644)
-}
-
-func getLastNItemsAsPublic(items *ContentStorage, n int) []PublicLink {
+func getLastNItemsAsPublic(items *types.ContentStorage, n int) []types.PublicLink {
 	length := len(items.Links)
 	if length < 0 {
-		return make([]PublicLink, 0)
+		return make([]types.PublicLink, 0)
 	}
 
 	if length < n {
@@ -309,11 +257,11 @@ func getLastNItemsAsPublic(items *ContentStorage, n int) []PublicLink {
 	}
 
 	transform := items.Links[length-n:] // grab last n elements of items we are dealing with
-	out := make([]PublicLink, n)
+	out := make([]types.PublicLink, n)
 
 	//for each item, set the right URL (short or not) and description
 	for i := 0; i < n; i++ {
-		var newI PublicLink
+		var newI types.PublicLink
 		item := transform[i]
 		if item.ShortLink != "" {
 			newI.URL = shortLinkBase + item.ShortLink
@@ -337,7 +285,7 @@ func updateShortsToServe() {
 		storageMutex.RLock()
 		defer storageMutex.RUnlock()
 
-		its := loadItemsFromFile(storageJSONFile)
+		its := util.LoadItemsFromFile(storageJSONFile)
 		shorts := its.Shorts
 		for i := len(shorts) - 1; i >= 0; i-- {
 			short := shorts[i]
@@ -377,18 +325,7 @@ func getAdminKey(keyPath string) string {
 }
 
 func generateShortID() string {
-	return RandString(6) // use 6 for now, since 24 possible characters gives us some room
-}
-
-// based on Open Location Code Base20 alphabet, add E, L, S and T because I felt like it
-const letterBytes = "23456789CEFGHJLMPQRSTVWX"
-
-func RandString(n int) string {
-	b := make([]byte, n)
-	for i := range b {
-		b[i] = letterBytes[rand.Intn(len(letterBytes))]
-	}
-	return string(b)
+	return util.RandString(6) // use 6 for now, since 24 possible characters gives us some room
 }
 
 func returnString(w io.Writer, s string) {
@@ -407,12 +344,7 @@ func correctKey(key string) bool {
 	return true
 }
 
-func isInteger(s string) bool {
-	_, err := strconv.ParseInt(s, 10, 64)
-	return err == nil
-}
-
 //removeShort index from shorts array
-func removeShort(slice []Short, s int) []Short {
+func removeShort(slice []types.Short, s int) []types.Short {
 	return append(slice[:s], slice[s+1:]...)
 }
