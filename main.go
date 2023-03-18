@@ -185,7 +185,10 @@ func addShort(w http.ResponseWriter, r *http.Request) error {
 	} else {
 		releaseTime = releaseTime.Truncate(time.Second) // if releasing now, then don't need to specify second
 	}
-	//releaseTime = findNextValidReleaseTime(releaseTime)
+
+	// find release time to make sure there is separation
+	tmpShorts := util.LoadItemsFromFile(storageJSONFile).Shorts
+	releaseTime = util.FindNextValidShortReleaseTime(releaseTime, tmpShorts)
 
 	//create new short
 	newShort := types.Short{
