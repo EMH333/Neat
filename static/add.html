@@ -23,7 +23,7 @@
         <label for="content">Content:</label>
         <textarea name="content" id="content"></textarea>
         <label for="releaseHours">Minimum hours (rounded to the nearest hour) before release:</label>
-        <input type="number" name="releaseHours" id="releaseHours">
+        <input type="number" name="releaseHours" id="releaseHours" value="0">
         <input type="password" name="password" id="shortsPassword" placeholder="Password">
         <input type="hidden" name="type" value="short">
         <button type="submit">Submit</button>
@@ -35,5 +35,9 @@
         <input type="password" name="password" id="AllPassword" placeholder="Password">
         <button type="submit">Get All Items</button>
     </form>
+
+    <h2>Public Pages</h2>
+    <a href="/shorts">Shorts</a> <br>
+    <a href="/json">Links</a>
 </body>
 </html>

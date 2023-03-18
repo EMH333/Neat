@@ -12,10 +12,19 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"sort"
 	"strconv"
 	"sync"
 	"time"
 )
+
+//TODO before shorts release:
+// - Figure out how to tie in the shorts identifiers (url fragment?)
+// - add SEO to shorts page
+// - limit number of displayed shorts
+// - prep brief blog post
+// - preload a whole bunch of shorts
+// - add link from main website
 
 // constant (except for when testing)
 var storageJSONFile = "./neatStuff.json"
@@ -132,7 +141,7 @@ func serveAdd(w http.ResponseWriter, r *http.Request) {
 			returnString(w, "Invalid Type")
 		}
 
-		returnString(w, "Success!")
+		http.ServeFile(w, r, "./static/addSuccess.html")
 		log.Println("User added a " + addType)
 	} else {
 		w.WriteHeader(400)
@@ -154,7 +163,7 @@ func addLink(w http.ResponseWriter, r *http.Request) error {
 	defer storageMutex.Unlock()
 
 	//create new item, add to all items and delete currently cached items
-	newItem := types.Link{Description: description, URL: url, AddDate: time.Now()}
+	newItem := types.Link{Description: description, URL: url, AddDate: time.Now().Truncate(time.Millisecond)}
 	allItems := util.LoadItemsFromFile(storageJSONFile)
 	allItems.Links = append(allItems.Links, newItem)
 	util.StoreItemsInFile(allItems, storageJSONFile)
@@ -198,7 +207,7 @@ func addShort(w http.ResponseWriter, r *http.Request) error {
 		ReleaseDate: releaseTime,
 		Pinned:      false,
 		Kept:        0,
-		AddDate:     time.Now(),
+		AddDate:     time.Now().Truncate(time.Millisecond), // don't need this much precision
 	}
 
 	// make sure clear to write
@@ -297,6 +306,10 @@ func updateShortsToServe() {
 				shorts = removeShort(shorts, i)
 			}
 		}
+		//sort so they are displayed with the most recently released ones first
+		sort.Slice(shorts[:], func(i, j int) bool {
+			return shorts[i].ReleaseDate.After(shorts[j].ReleaseDate)
+		})
 		shortsToServe = shorts
 		shortsLastUpdated = time.Now()
 	}

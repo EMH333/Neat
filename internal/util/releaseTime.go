@@ -19,7 +19,7 @@ func FindNextValidShortReleaseTime(after time.Time, otherShorts []types.Short) t
 	}
 
 	// if it matches the constraints of the release after time, then use it
-	if maxOtherReleaseTime.After(after) {
+	if maxOtherReleaseTime.Add(ShortReleaseSeparation).After(after) {
 		return maxOtherReleaseTime.Add(ShortReleaseSeparation)
 	} else {
 		// otherwise just return the time as is (maybe there are no pending releases)
