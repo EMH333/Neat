@@ -13,6 +13,7 @@ import (
 	"net/http"
 	"os"
 	"strconv"
+	"sync"
 	"time"
 )
 
@@ -33,7 +34,7 @@ type Short struct {
 	Content     string
 	ID          string    // system generated, for admin use (but displayed on page)
 	ReleaseDate time.Time // allow for delayed releasing, if before AddDate, then immediate release
-	Pinned      bool      //TODO allow pinning shorts so they dont disappear
+	Pinned      bool      //TODO allow pinning shorts so they don't disappear
 	Kept        uint64    //TODO allow anonymous users to "keep" a short so the time they are visible is extended
 	AddDate     time.Time
 }
@@ -53,6 +54,7 @@ type ContentStorage struct {
 
 // constant (except for when testing)
 var storageJSONFile = "./neatStuff.json"
+var storageMutex sync.RWMutex
 
 const shortLinkBase = "https://links.ethohampton.com/"
 const numToShowPublic = 5
@@ -65,6 +67,7 @@ var port = ":8080"
 var itemsToServe []PublicLink
 var shortsToServe []Short
 var shortsTemplate *template.Template
+var shortsLastUpdated time.Time
 
 func main() {
 	if len(os.Args) > 1 && isInteger(os.Args[1]) {
@@ -98,6 +101,10 @@ func getHandlers() *http.ServeMux {
 
 func serveLinks(w http.ResponseWriter, _ *http.Request) {
 	if itemsToServe == nil || len(itemsToServe) != numToShowPublic {
+		// make sure we have a read lock before continuing
+		storageMutex.RLock()
+		defer storageMutex.RUnlock()
+
 		its := loadItemsFromFile(storageJSONFile)
 		itemsToServe = getLastNItemsAsPublic(its, numToShowPublic)
 	}
@@ -109,19 +116,8 @@ func serveLinks(w http.ResponseWriter, _ *http.Request) {
 }
 
 func serveShorts(w http.ResponseWriter, _ *http.Request) {
-	//TODO occasionally refresh shorts
-	if shortsToServe == nil {
-		its := loadItemsFromFile(storageJSONFile)
-		shorts := its.Shorts
-		for i := len(shorts) - 1; i >= 0; i-- {
-			short := shorts[i]
-			// make sure shorts aren't being shown before release date
-			if time.Now().Before(short.ReleaseDate) {
-				shorts = removeShort(shorts, i)
-			}
-		}
-		shortsToServe = shorts
-	}
+	//make sure shorts are correct before serving them
+	updateShortsToServe()
 
 	err := shortsTemplate.Execute(w, struct {
 		Shorts []Short
@@ -188,6 +184,10 @@ func addLink(w http.ResponseWriter, r *http.Request) error {
 		return errors.New("nothing in form")
 	}
 
+	// make sure clear to write
+	storageMutex.Lock()
+	defer storageMutex.Unlock()
+
 	//create new item, add to all items and delete currently cached items
 	newItem := Link{Description: description, URL: url, AddDate: time.Now()}
 	allItems := loadItemsFromFile(storageJSONFile)
@@ -231,6 +231,10 @@ func addShort(w http.ResponseWriter, r *http.Request) error {
 		Kept:        0,
 		AddDate:     time.Now(),
 	}
+
+	// make sure clear to write
+	storageMutex.Lock()
+	defer storageMutex.Unlock()
 
 	allItems := loadItemsFromFile(storageJSONFile)
 	allItems.Shorts = append(allItems.Shorts, newShort)
@@ -320,6 +324,31 @@ func getLastNItemsAsPublic(items *ContentStorage, n int) []PublicLink {
 		out[i] = newI
 	}
 	return out
+}
+
+func updateShortsToServe() {
+	// refresh shorts every hour in case something has changed
+	if shortsLastUpdated.Add(time.Hour).Before(time.Now()) {
+		shortsToServe = nil
+	}
+
+	if shortsToServe == nil {
+		// make sure we have a read lock before continuing
+		storageMutex.RLock()
+		defer storageMutex.RUnlock()
+
+		its := loadItemsFromFile(storageJSONFile)
+		shorts := its.Shorts
+		for i := len(shorts) - 1; i >= 0; i-- {
+			short := shorts[i]
+			// make sure shorts aren't being shown before release date
+			if time.Now().Before(short.ReleaseDate) {
+				shorts = removeShort(shorts, i)
+			}
+		}
+		shortsToServe = shorts
+		shortsLastUpdated = time.Now()
+	}
 }
 
 func getAdminKey(keyPath string) string {
