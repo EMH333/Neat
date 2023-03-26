@@ -19,12 +19,14 @@ import (
 )
 
 //TODO before shorts release:
-// - Figure out how to tie in the shorts identifiers (url fragment?)
 // - add SEO to shorts page
 // - limit number of displayed shorts
 // - prep brief blog post
 // - preload a whole bunch of shorts
 // - add link from main website
+
+//TODO after release:
+// - page per short
 
 // constant (except for when testing)
 var storageJSONFile = "./neatStuff.json"

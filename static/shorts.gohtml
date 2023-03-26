@@ -16,12 +16,16 @@
         h1, h2, h3 {
             line-height: 1.2
         }
+
+        .short {
+            padding: 0.5em 0;
+        }
     </style>
 </head>
 <body>
 {{ range .Shorts }}
-    <div>
-        <h2>{{ .Title }} - <a href="/short/{{ .ID }}">{{ .ID }}</a></h2>
+    <div class="short" id="{{ .ID }}">
+        <h2>{{ .Title }} - <a href="#{{ .ID }}">{{ .ID }}</a></h2>
         <p>{{ .Content }}</p>
         <p>{{ .ReleaseDate }}</p>
     </div>
