@@ -20,20 +20,21 @@ import (
 
 //TODO before shorts release:
 // - add SEO to shorts page
-// - limit number of displayed shorts
 // - prep brief blog post
 // - preload a whole bunch of shorts
 // - add link from main website
 
 //TODO after release:
 // - page per short
+// - paginate shorts
 
 // constant (except for when testing)
 var storageJSONFile = "./neatStuff.json"
 var storageMutex sync.RWMutex
 
 const shortLinkBase = "https://links.ethohampton.com/"
-const numToShowPublic = 5
+const numLinksToShowPublic = 5
+const numShortsToShowPublic = 10
 const adminKeyPath = "./admin.key"
 
 var adminKey string
@@ -76,13 +77,13 @@ func getHandlers() *http.ServeMux {
 }
 
 func serveLinks(w http.ResponseWriter, _ *http.Request) {
-	if itemsToServe == nil || len(itemsToServe) != numToShowPublic {
+	if itemsToServe == nil || len(itemsToServe) != numLinksToShowPublic {
 		// make sure we have a read lock before continuing
 		storageMutex.RLock()
 		defer storageMutex.RUnlock()
 
 		its := util.LoadItemsFromFile(storageJSONFile)
-		itemsToServe = getLastNItemsAsPublic(its, numToShowPublic)
+		itemsToServe = getLastNItemsAsPublic(its, numLinksToShowPublic)
 	}
 
 	output, _ := json.Marshal(itemsToServe)
@@ -312,6 +313,12 @@ func updateShortsToServe() {
 		sort.Slice(shorts[:], func(i, j int) bool {
 			return shorts[i].ReleaseDate.After(shorts[j].ReleaseDate)
 		})
+
+		//limit to numShortsToShowPublic shorts
+		if len(shorts) > numShortsToShowPublic {
+			shorts = shorts[:numShortsToShowPublic]
+		}
+
 		shortsToServe = shorts
 		shortsLastUpdated = time.Now()
 	}
