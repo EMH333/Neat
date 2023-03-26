@@ -19,7 +19,6 @@ import (
 )
 
 //TODO before shorts release:
-// - add SEO to shorts page
 // - prep brief blog post
 // - preload a whole bunch of shorts
 // - add link from main website
@@ -27,6 +26,7 @@ import (
 //TODO after release:
 // - page per short
 // - paginate shorts
+// - improve seo
 
 // constant (except for when testing)
 var storageJSONFile = "./neatStuff.json"
