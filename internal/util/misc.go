@@ -1,8 +1,10 @@
 package util
 
 import (
+	"html/template"
 	"math/rand"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -27,4 +29,14 @@ func RandString(n int) string {
 func IsInteger(s string) bool {
 	_, err := strconv.ParseInt(s, 10, 64)
 	return err == nil
+}
+
+func GenerateHTML(content string) template.HTML {
+	var output strings.Builder
+
+	output.Write([]byte("<p>"))
+	output.WriteString(strings.ReplaceAll(content, "\r\n\r\n", "</p><p>"))
+	output.Write([]byte("</p>"))
+
+	return template.HTML(output.String())
 }

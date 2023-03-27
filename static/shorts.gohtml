@@ -28,7 +28,7 @@
         <header>
             <h2>{{ .Title }} - <a href="#{{ .ID }}">{{ .ID }}</a></h2>
         </header>
-        <p>{{ .Content }}</p>
+        {{ .Content | formatContent}}
         <footer>
             <time datetime="{{ .ReleaseDate.Format "2006-01-02T15:04:05Z07:00" }}">Published {{ .ReleaseDate.Format "Mon, 02 Jan 2006 15:04 MST" }}</time>
         </footer>

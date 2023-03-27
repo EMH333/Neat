@@ -53,7 +53,9 @@ func main() {
 	log.Printf("Listening at http://localhost%s", port)
 
 	var err error
-	shortsTemplate, err = template.ParseFiles("static/shorts.gohtml")
+	shortsTemplate, err = template.New("shorts.gohtml").Funcs(template.FuncMap{
+		"formatContent": util.GenerateHTML,
+	}).ParseFiles("static/shorts.gohtml")
 	if err != nil {
 		log.Fatal(err)
 	}
